@@ -102,7 +102,7 @@ options:
 notes:
   - Two environment variables can be used, DO_API_KEY and DO_API_TOKEN. They both refer to the v2 token.
   - As of Ansible 1.9.5 and 2.0, Version 2 of the DigitalOcean API is used, this removes C(client_id) and C(api_key) options in favor of C(api_token).
-  - If you are running Ansible 1.9.4 or earlier you might not be able to use the included version of this module as the API version used has been retired. 
+  - If you are running Ansible 1.9.4 or earlier you might not be able to use the included version of this module as the API version used has been retired.
     Upgrade Ansible or, if unable to, try downloading the latest version of this module from github and putting it into a 'library' directory.
 requirements:
   - "python >= 2.6"
@@ -170,7 +170,14 @@ EXAMPLES = '''
 
 import os
 import time
+import base64
+import hashlib
 from distutils.version import LooseVersion
+
+def get_fingerprint(str):
+    key = base64.b64decode(str.strip().split()[1].encode('ascii'))
+    fp_plain = hashlib.md5(key).hexdigest()
+    return ':'.join(a+b for a,b in zip(fp_plain[::2], fp_plain[1::2]))
 
 HAS_DOPY = True
 try:
@@ -286,6 +293,17 @@ class SSH(JsonfyMixIn):
         cls.manager = DoManager(None, api_token, api_version=2)
 
     @classmethod
+    def find_by_key(cls, key_pub):
+        if not key_pub:
+            return False
+        keys = cls.list_all()
+        fingerprint = get_fingerprint(key_pub)
+        for key in keys:
+            if key.fingerprint == fingerprint:
+                return key
+        return False
+
+    @classmethod
     def find(cls, name):
         if not name:
             return False
@@ -302,8 +320,11 @@ class SSH(JsonfyMixIn):
 
     @classmethod
     def add(cls, name, key_pub):
-        json = cls.manager.new_ssh_key(name, key_pub)
-        return cls(json)
+        key = cls.find_by_key(key_pub)
+        if key is False:
+            return cls(cls.manager.new_ssh_key(name, key_pub))
+        else:
+            return key
 
 def core(module):
     def getkeyordie(k):
