@@ -174,8 +174,14 @@ import base64
 import hashlib
 from distutils.version import LooseVersion
 
+def decode_base64(data):
+    missing_padding = 4 - len(data) % 4
+    if missing_padding:
+        data += b'='* missing_padding
+    return base64.decodestring(data)
+
 def get_fingerprint(str):
-    key = base64.b64decode(str.strip().split()[1].encode('ascii'))
+    key = decode_base64(str.strip().split()[1].encode('ascii'))
     fp_plain = hashlib.md5(key).hexdigest()
     return ':'.join(a+b for a,b in zip(fp_plain[::2], fp_plain[1::2]))
 
